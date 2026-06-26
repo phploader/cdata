@@ -1,6 +1,6 @@
 <?php
 
-namespace papp;
+namespace phploader;
 
 /** DOC
 @version 2.15

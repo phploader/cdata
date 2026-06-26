@@ -1,6 +1,7 @@
 #2.15
 + Man kann explizit die Cache-Datenbank an einem anderen Ort erzeugen, durch die Verzeichnis Übergabe per FILENAME_C
 ! Fix: wird ein FILENAME an CCache übergeben mit Verzeichnis dieses nicht exsistiert, so wird ein Fehler erzeugt. 
+~ Änderung des Namespaces auf phploader
 #2.14
 ! Fix: Mehrfache auffrufen der set_object Funktion hatt einfluß auf nachfolgende aufruffe negative beinflusst. 
 ! Fix: Wird auf ein Unbekantes Pattern mit Where Anweisugn zugegrifen, so erzeugt dies einen Fatal Error
