@@ -47,7 +47,7 @@ class CData
 			}
 
 			$_File_Cache = $P['DB']['FILENAME_C']??$P['DB']['FILENAME'];
-			$this->CCache = new CCache([ 'DB' => ['FILENAME' => $_File_Cache.'.cache' ] ]);
+			$this->CCache = new \phploader\CCache([ 'DB' => ['FILENAME' => $_File_Cache.'.cache' ] ]);
 
 			if($P['PRAGMA']??false) {
 				$this->SQL->exec($P['PRAGMA']);
@@ -188,7 +188,9 @@ class CData
 	}
 
 	/**
-	 * Erstellt eine Sicherung der Datenbank
+	 * Diese Funktion erstellt ein Backup der Datenbank.
+	 * Optional kann ein Zielverzeichnis und ein Passwort für die Sicherung angegeben werden.
+	 * BackupDestinationPath und BackupPassword können beim Konstruktor übergeben werden.
 	 */
 	function backup() {
 		if($this->Param['DB']) {
@@ -224,7 +226,7 @@ class CData
 
 	/**
 	 * Erzeugt ein float Wert aus einem Text Folge und kann für Sortierung in der Datenbank verwendet werden
-	*/
+	 */
 	private function _Value2SortHash($s) {
 		$pre = (int)($s);#Wen Zahlen vor stehen, dann wird nach Zahlen Größe sortiert. So dass 1 kleiner ist als 10
 		$s = strtolower($s);
@@ -606,52 +608,52 @@ class CData
 		return " {$O} ";
 	}
 
-private function _get_order(&$F, &$Pattern, $Level=0) {
-	$O = '';
-	if(($F['O']??false)) {
-					foreach ((array) $F['O'] as $kR => $R) {
-						foreach ((array) $R as $key => $value) {
-							if ($key == 'ID') {
-								$O .= (($O) ? ',' : '') . " dtmp{$Level}.id {$value} ";
-							}
-							elseif ($key == 'UTIMESTAMP') {
-								$O .= (($O) ? ',' : '') . " (SELECT utimestamp FROM wp_data d WHERE dtmp{$Level}.parent_path_hash = d.parent_path_hash AND dtmp{$Level}.id = d.id AND dtmp{$Level}.type_id = d.type_id ) {$value} ";
-							}
-							elseif ($key == 'ITIMESTAMP') {
-								$O .= (($O) ? ',' : '') . " (SELECT itimestamp FROM wp_data d WHERE dtmp{$Level}.parent_path_hash = d.parent_path_hash AND dtmp{$Level}.id = d.id AND dtmp{$Level}.type_id = d.type_id ) {$value} ";
-							}
-							elseif( in_array($key,array_keys((array)$Pattern) ) ) { #Prüfe ob das Attribut auch im Patern enthalten ist. z.B: Active
-								$O .= (($O) ? ',' : '') . " (SELECT sort FROM wp_data_att dt WHERE dtmp{$Level}.parent_path_hash = dt.parent_path_hash AND dtmp{$Level}.id = dt.id AND dtmp{$Level}.type_id = dt.type_id AND attribute_id = '{$key}' ) {$value}";
-							}
-							elseif( in_array($key,array_keys((array)$Pattern['D']) )) {# Weitere Ebene Prüfen
-								
-								#$O .= (($O)? ' AND ' : ' ')." (SELECT 2 FROM wp_data_cache dtmp".($Level+1) ." WHERE dtmp".($Level+1).".parent_path_hash = dtmp{$Level}.path_hash ";
-								$O .= (($O)? ',' : ' ')." (SELECT sort FROM wp_data_att dt".($Level+1).", wp_data_cache dtmp".($Level+1)." 
-								WHERE dtmp".($Level+1).".parent_path_hash = dtmp{$Level}.path_hash 
-								AND dtmp".($Level+1).".parent_path_hash = dt".($Level+1).".parent_path_hash 
-								AND dtmp".($Level+1).".id = dt".($Level+1).".id 
-								AND dtmp".($Level+1).".type_id = dt".($Level+1).".type_id ";
-								
-								$O .= $this->_get_order($value,$Pattern['D'][$key],$Level+1);
-								#ToDo: funktioniert nur mit der nächsten ebene. Weil "O" oben gefiltert wird: z.B: $f['ARTICLE']['O'][0]['ATTRIBUTE']['ITEM']['PROPERTY']['D']['Number']['Value'] = 'DESC';
-								if($value['D']??false) {
-									$_id = array_key_first($value['D']);
-									$_att_id = array_key_first($value['D'][$_id]);
-									$O .= " AND dt".($Level+1).".attribute_id = '{$_att_id}' AND dt".($Level+1).".id = '{$_id}' ";
-									$O .= " ) {$value['D'][$_id][$_att_id]}";
+	private function _get_order(&$F, &$Pattern, $Level=0) {
+		$O = '';
+		if(($F['O']??false)) {
+						foreach ((array) $F['O'] as $kR => $R) {
+							foreach ((array) $R as $key => $value) {
+								if ($key == 'ID') {
+									$O .= (($O) ? ',' : '') . " dtmp{$Level}.id {$value} ";
 								}
-								else {
-									$O .= ' )';
+								elseif ($key == 'UTIMESTAMP') {
+									$O .= (($O) ? ',' : '') . " (SELECT utimestamp FROM wp_data d WHERE dtmp{$Level}.parent_path_hash = d.parent_path_hash AND dtmp{$Level}.id = d.id AND dtmp{$Level}.type_id = d.type_id ) {$value} ";
+								}
+								elseif ($key == 'ITIMESTAMP') {
+									$O .= (($O) ? ',' : '') . " (SELECT itimestamp FROM wp_data d WHERE dtmp{$Level}.parent_path_hash = d.parent_path_hash AND dtmp{$Level}.id = d.id AND dtmp{$Level}.type_id = d.type_id ) {$value} ";
+								}
+								elseif( in_array($key,array_keys((array)$Pattern) ) ) { #Prüfe ob das Attribut auch im Patern enthalten ist. z.B: Active
+									$O .= (($O) ? ',' : '') . " (SELECT sort FROM wp_data_att dt WHERE dtmp{$Level}.parent_path_hash = dt.parent_path_hash AND dtmp{$Level}.id = dt.id AND dtmp{$Level}.type_id = dt.type_id AND attribute_id = '{$key}' ) {$value}";
+								}
+								elseif( in_array($key,array_keys((array)$Pattern['D']) )) {# Weitere Ebene Prüfen
+									
+									#$O .= (($O)? ' AND ' : ' ')." (SELECT 2 FROM wp_data_cache dtmp".($Level+1) ." WHERE dtmp".($Level+1).".parent_path_hash = dtmp{$Level}.path_hash ";
+									$O .= (($O)? ',' : ' ')." (SELECT sort FROM wp_data_att dt".($Level+1).", wp_data_cache dtmp".($Level+1)." 
+									WHERE dtmp".($Level+1).".parent_path_hash = dtmp{$Level}.path_hash 
+									AND dtmp".($Level+1).".parent_path_hash = dt".($Level+1).".parent_path_hash 
+									AND dtmp".($Level+1).".id = dt".($Level+1).".id 
+									AND dtmp".($Level+1).".type_id = dt".($Level+1).".type_id ";
+									
+									$O .= $this->_get_order($value,$Pattern['D'][$key],$Level+1);
+									#ToDo: funktioniert nur mit der nächsten ebene. Weil "O" oben gefiltert wird: z.B: $f['ARTICLE']['O'][0]['ATTRIBUTE']['ITEM']['PROPERTY']['D']['Number']['Value'] = 'DESC';
+									if($value['D']??false) {
+										$_id = array_key_first($value['D']);
+										$_att_id = array_key_first($value['D'][$_id]);
+										$O .= " AND dt".($Level+1).".attribute_id = '{$_att_id}' AND dt".($Level+1).".id = '{$_id}' ";
+										$O .= " ) {$value['D'][$_id][$_att_id]}";
+									}
+									else {
+										$O .= ' )';
+									}
 								}
 							}
 						}
-					}
-	
-					$O = ($O) ? "ORDER BY {$O}" : '';
-	}
+		
+						$O = ($O) ? "ORDER BY {$O}" : '';
+		}
 
-	return $O??'';
-}
+		return $O??'';
+	}
 
 	function get_object(&$D = null, &$F=null, $Parent_Hash=[], $Parent_Type = '', $Parent_Id = '') {
 		static $stLevel = 0;
@@ -764,121 +766,4 @@ private function _get_order(&$F, &$Pattern, $Level=0) {
 
 	}
 
-}
-
-class CCache
-{
-	private $SQL;
-	/**
-	 * 'DB'			=> [FILENAME,FLAGS] Datenbank Zugang
-	 * ToDo: 
-	 * 1. alte ungenutzte Datensätze wieder löschen
-	 * 2. TTL um 24 h verlängern wenn der wert abgefragt wird
-	 * 3. Cache bereinigen wenn Datensätze sich geändert haben, anhand der tag Werte sollen entweder Werte entfernt werden oder durch Source der Cache aktuallisiert werden!
-	 * 
-	*/
-	function __construct($P=null)
-	{
-		if($P['DB']) {
-			if(file_exists($P['DB']['FILENAME'])) {
-				$this->SQL = new \SQLite3($P['DB']['FILENAME'], ($P['DB']['FLAGS']??SQLITE3_OPEN_READWRITE) );
-			} else {
-				$path= pathinfo($P['DB']['FILENAME']);
-				if(!is_dir($path['dirname'])) {
-					mkdir($path['dirname'], 0777, true);
-				}
-				$this->SQL = new \SQLite3($P['DB']['FILENAME']);
-				$this->CreateDB();
-			}
-			if($P['PRAGMA']??false) {
-				$this->SQL->exec($P['PRAGMA']);
-			} else {
-				$this->SQL->exec("
-				PRAGMA busy_timeout = 5000;		PRAGMA cache_size = -8192;
-				PRAGMA synchronous = OFF;		PRAGMA foreign_keys = OFF;
-				PRAGMA temp_store = MEMORY;		PRAGMA default_temp_store = MEMORY;
-				PRAGMA read_uncommitted = true;	PRAGMA journal_mode = wal;
-				
-				");#PRAGMA mmap_size = 52428800;
-			}
-			$this->Param['DB'] = $P['DB'];
-		} else { exit('kein DB-Übergabe Parameter!'); }
-	}
-
-	private function CreateDB() {
-		$this->SQL->exec('
-			CREATE TABLE IF NOT EXISTS "wp_cache" (
-			"id" text NOT NULL,
-			"source" text NULL,
-			"ttl" integer NOT NULL,
-			"tag" text NULL,
-			"data" blob NULL,
-			"itimestamp" integer NULL DEFAULT (cast(strftime(\'%s\', \'now\') as int)),
-			PRIMARY KEY ("id")
-			);
-			
-			CREATE INDEX IF NOT EXISTS "wp_cache_tag" ON "wp_cache" ("tag");
-			CREATE INDEX IF NOT EXISTS "wp_cache_ttl" ON "wp_cache" ("ttl");
-			CREATE INDEX IF NOT EXISTS "wp_cache_itimestamp" ON "wp_cache" ("itimestamp");
-			');
-	}
-
-	function backup($P=null) {
-		if($this->Param['DB']) {
-			$datetime = date("YmdHid"); 
-			#Backup der DB
-			$path = pathinfo($this->Param['DB']['FILENAME']);
-			$_path = ($P['DestinationPath'])??$path['dirname'].'/';
-			$backup = new \SQLite3("{$_path}{$datetime}_{$path['basename']}");
-			$this->SQL->backup($backup);
-			$backup->exec("VACUUM");
-		}
-	}
-
-	/*
-	* $P = optional array = [ 'Id', 'Tag' (string|array) (zusätzliche angabe von tag zum gruppieren von Caches) ]
-	*/
-	function get_cache($id) {
-		$_id = (is_array($id))?implode("','",(array)$id):$id;
-		$W = " id IN ('{$_id}')";
-		#$now = time()-(24*60*60);
-		$now = time();
-		$qry = $this->SQL->query("SELECT id AS Id, source AS Source, ttl AS Ttl, tag AS Tag, data AS Data FROM  wp_cache WHERE {$W} AND ttl > {$now}" );
-		while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
-			$D[$a['Id']] = $a;
-		}
-		#Erhöhe TTL um weitere 24h wenn diese in der letzten Stunde einmal abgerufen wurde. Dadurch wird häufig abgefragter Cache am leben gehalten.
-		$stmt = $this->SQL->prepare("UPDATE wp_cache SET ttl = {$now}+(24*60*60) WHERE {$W} AND ttl > {$now} AND ttl < {$now}+60*60 ");
-		$stmt->execute();
-	
-		return $D??[];
-	}
-
-	/*
-	* $P[ID] = optional array = [ 'Tag', 'Source', 'Ttl']
-	*/
-	function set_cache($P) {
-		$stmt = $this->SQL->prepare('REPLACE INTO wp_cache (id, ttl, source, tag, data) VALUES (:id, :ttl, :source, :tag, :data)');
-		foreach((array)$P AS $kP => $vP){
-			$vP['Ttl'] = (isset($vP['Ttl']))?",'{$vP['Ttl']}'":time()+24*60*60;
-			$stmt->bindParam(':id', $kP);
-			$stmt->bindParam(':ttl', $vP['Ttl'], \SQLITE3_INTEGER );
-			$stmt->bindParam(':source', $vP['Source']);
-			$stmt->bindParam(':tag', $vP['Tag']);
-			$stmt->bindParam(':data', $vP['Data'], SQLITE3_BLOB);
-		}
-		return $stmt->execute() !== false;
-	}
-
-	/** Cache bereinigen 
-	 * (optional) $P['Tag'] = Lösche nach Tag, oder '%' für alles
-	 * Wird kein Tag übergeben, wird lediglich nach abgelaufenden TTL Cache bereinigt
-	*/
-	function flush($P=null) {
-		if(isset($P['Tag'])) {
-			$this->SQL->query("DELETE FROM wp_cache WHERE tag LIKE '{$P['Tag']}%' ");
-		}
-		$time = time();
-		$this->SQL->query("DELETE FROM wp_cache WHERE ttl < {$time} ");
-	}
 }

@@ -1,3 +1,6 @@
+#2.16
+~ Klasse CCache aus der CData Klasse ausgelagert. Dadurch ist es möglich, den Cache auch ohne CData zu nutzen.
+~ Entfernt backup Funktion aus CCache, da diese Funktionalität nicht in den Cache gehört.
 #2.15
 + Man kann explizit die Cache-Datenbank an einem anderen Ort erzeugen, durch die Verzeichnis Übergabe per FILENAME_C
 ! Fix: wird ein FILENAME an CCache übergeben mit Verzeichnis dieses nicht exsistiert, so wird ein Fehler erzeugt. 

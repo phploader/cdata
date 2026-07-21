@@ -16,8 +16,5 @@
     },
 	"autoload" : {
 		"psr-4" : { "phploader\\" : "lib/" }
-	},
-	"autoload-dev" : {
-		"psr-4" : { "phploader\\" : "lib/" }
 	}
 }
