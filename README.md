@@ -1,3 +1,14 @@
+## Hi everyone,
+I have been diving deep into SQLite3 databases lately. During my research, I frequently read that SQLite3 is slower than traditional database systems (like MySQL or PostgreSQL) and should generally only be used for small projects with few users and minimal data.
+
+However, my experience has been completely different. In my tests, I found that SQLite3 – when configured correctly – can actually be up to 10 times faster than MySQL. It handles large amounts of data beautifully and can easily manage multiple concurrent users and requests.
+
+In my opinion, the greatest challenge is exercising self-restraint and not treating SQLite3 exactly like MySQL.
+
+We often catch ourselves writing highly complex SQL queries with countless joins and sub-queries. I have come to view these deeply nested queries critically and no longer consider them a best practice for clean, performant programming. Since shifting away from that approach, I see SQLite3 from a whole new perspective.
+
+To put this philosophy into practice, I developed a PHP class that allows you to interact with the database completely without writing manual SQL queries. It is extremely simple to use and, above all, fast. SQLite3 also brings unique advantages over other SQL databases—for instance, you can easily maintain multiple database files separated by topic within a single project.
+
 ## Beschreibung
 Die Klasse Cdata wurde entwickelt, um den Umgang mit Daten und deren Speicherung unabhängig von der Datenbank zu ermöglichen. Sie sorgt dafür, dass der Code klar von der Datenbank abgegrenzt ist und vermeidet die Notwendigkeit, datenbankspezifische Befehle im Code zu verwenden.
 
