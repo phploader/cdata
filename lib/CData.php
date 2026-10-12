@@ -1,9 +1,8 @@
 <?php
-
 namespace phploader;
 
 /** DOC
-@version 2.15
+@version 2.16
 @license https://opensource.org/license/lgpl-3-0 GNU Public License
  
 @todo
@@ -55,10 +54,10 @@ class CData
 				$this->SQL->exec("
 				PRAGMA busy_timeout = 5000;		PRAGMA cache_size = -8192;
 				PRAGMA synchronous = 1;			PRAGMA foreign_keys = OFF;
-				PRAGMA temp_store = MEMORY;		PRAGMA default_temp_store = MEMORY;
-				PRAGMA read_uncommitted = true;	PRAGMA journal_mode = wal;
+				PRAGMA temp_store = MEMORY;		
+				PRAGMA journal_mode = wal;
 				PRAGMA wal_autocheckpoint=1000; PRAGMA encoding = 'UTF-8';
-				");
+				");# PRAGMA journal_mode = normal;
 			}
 			
 			$this->BackupDestinationPath = ($P['BACKUP']['DestinationPath'])??'backup/';
@@ -77,6 +76,12 @@ class CData
 			}
 
 		} else { exit('kein DB-Übergabe Parameter!'); }
+	}
+
+	function __destruct() {
+		if(isset($this->SQL)) {
+			$this->SQL->close();
+		}
 	}
 	
 	/**
@@ -196,7 +201,7 @@ class CData
 		if($this->Param['DB']) {
 			#Erstelle Unter Verzeichnis
 			if(!is_dir($this->BackupDestinationPath)) {
-				mkdir($this->BackupDestinationPath,0777,true);
+				mkdir($this->BackupDestinationPath,0755,true);
 			}
 
 			$datetime = date("YmdHis");
@@ -282,8 +287,10 @@ class CData
 								elseif(($this->PATTERN[$kType][$kATT]??false) && !is_array($ATT)) {
 									if(($ATT !== NULL && $ATT != '' && $ATT != '__DELETE__') || ($ATT !== NULL && isset($this->PATTERN[$kType][$kATT]['ForeignKey']) && $this->PATTERN[$kType][$kATT]['ForeignKey'] == 1) ) {
 										$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$kSup}','{$kType}','{$Parent_Hash}','{$kATT}'";#Setze Attribute
-										$IU_DATA_ATT .= (isset($ATT)) ? ",'".$this->_Value2SortHash($ATT)."'" : ",NULL";
-										$IU_DATA_ATT .= (isset($ATT)) ? ",'".$this->SQL->escapeString($ATT)."'" : ",NULL";
+										
+										$_sort = $this->_Value2SortHash($ATT); 
+										$IU_DATA_ATT .= (isset($ATT)) ? ",".(is_float($_sort) ? $_sort : "'".$_sort."'") : ",NULL";
+										$IU_DATA_ATT .= (isset($ATT)) ? ",'".\SQLite3::escapeString($ATT)."'" : ",NULL";
 										$IU_DATA_ATT .= ")";
 									}
 									else {
@@ -522,27 +529,36 @@ class CData
 		foreach ((array)$Operation AS $kOpe => $Ope) {
 			$OV .= ($OV)? ' OR ' : '';
 			$_Value = '';
-
-			if( in_array($kOpe, ['LIKE','LIKE%','LIKE%','LIKE%%','LIKE%-','LIKE-%']) ) {
+			$esc = " ESCAPE '\\'"; # Escape für LIKE-Operationen, außer bei einfachem LIKE
+			if( in_array($kOpe, ['LIKE','LIKE%','LIKE%%','LIKE%-','LIKE-%']) ) {
 				$pre = (in_array($kOpe,['LIKE%','LIKE%%','LIKE%-']))?'%':'';
 				$suf = (in_array($kOpe,['LIKE%','LIKE%%','LIKE-%']))?'%':'';
 				if(is_array($Ope)) { #Wurde Value als Array übergeben?
 					foreach((array)$Ope AS $k => $v) {
+						$v = addcslashes($v, '%_\\'); 
 						$v = \SQLite3::escapeString($v);
-						$_Value .= ($_Value?' OR ':'')."{$_Fild} LIKE '{$pre}{$v}{$suf}' ";
+						$_Value .= ($_Value?' OR ':'')."{$_Fild} LIKE '{$pre}{$v}{$suf}' {$esc}";
 					}
 				}
 				else {
+					$Ope = addcslashes($Ope, '%_\\');
 					$Ope = \SQLite3::escapeString($Ope);
-					$_Value = " {$_Fild} LIKE '{$pre}{$Ope}{$suf}'";
+					$_Value = " {$_Fild} LIKE '{$pre}{$Ope}{$suf}'  {$esc}";
 				}
 				$OV .= " {$_Value} ";
 			}
 			elseif( in_array($kOpe, ['>','<','>=','<=','<>','!=','=']) ) {
 				if(is_array($Ope)) { #Wurde Value als Array übergeben?
+					$ordered = in_array($kOpe, ['>','<','>=','<='], true);
 					foreach((array)$Ope AS $k => $v) {
-						$v = \SQLite3::escapeString($v);
-						$_Value .= ($_Value?' OR ':'')." {$_Fild} {$kOpe} '{$v}' ";
+						if($ordered && is_numeric($v)) {
+							$cond = "({$_Fild} GLOB '*[0-9]*' AND CAST({$_Fild} AS REAL) {$kOpe} ".(float)$v.")";
+						} else {
+							$cond = "{$_Fild} {$kOpe} '".\SQLite3::escapeString($v)."'";
+						}
+						$_Value .= ($_Value ? ' OR ' : '') . " {$cond} ";
+						#$v = \SQLite3::escapeString($v);
+						#$_Value .= ($_Value?' OR ':'')." {$_Fild} {$kOpe} '{$v}' ";
 					}
 				}
 				else {
@@ -566,7 +582,13 @@ class CData
 				$OV .= " {$_Value} ";
 			}
 			elseif( in_array($kOpe, ['BETWEEN','NOT BETWEEN']) ) {
-				#Todo
+				if( is_array($Ope) && count($Ope) === 2) {
+					[$a, $b] = array_values($Ope);
+					$num = is_numeric($a) && is_numeric($b);
+					$f = $num ? "CAST({$_Fild} AS REAL)" : $_Fild;
+					$OV .= $num ? " {$f} {$kOpe} ".(float)$a." AND ".(float)$b." "
+								: " {$f} {$kOpe} '".\SQLite3::escapeString($a)."' AND '".\SQLite3::escapeString($b)."' ";
+				}
 			}
 			elseif( in_array($kOpe, ['IN']) ) {
 				if(is_array($Ope)) { #Wurde Value als Array übergeben?
@@ -595,6 +617,7 @@ class CData
 				$OV .= " {$_Fild} NOT IN ({$_Value}) ";
 			}
 			else {
+				$Ope = \SQLite3::escapeString($Ope);
 				$aloneOV .= ($aloneOV?',':" {$_Fild} IN (")."'{$Ope}'"; #Ohne Operator übergabe
 			}
 		}
@@ -649,7 +672,7 @@ class CData
 							}
 						}
 		
-						$O = ($O) ? "ORDER BY {$O}" : '';
+						$O = ($O) ? "ORDER BY {$O}, dtmp{$Level}.id" : '';
 		}
 
 		return $O??'';
@@ -699,8 +722,8 @@ class CData
 
 					$W_count = " (dtmp0.type_id = '{$kType}' AND dtmp0.parent_path_hash IN ('{$kHash}') )"; #Für Count Berechnung, weil Count die absolute Maximum ausgibt ohne Filterung nach einzelnen Objekten.
 					
-					$L = (isset($F[$kType]['L']['STEP'])) ? "LIMIT 0,{$F[$kType]['L']['STEP']}" : $L;
-					$L = (isset($F[$kType]['L']['START']) && $F[$kType]['L']['STEP']) ? "LIMIT {$F[$kType]['L']['START']},{$F[$kType]['L']['STEP']}" : $L;
+					$L = (isset($F[$kType]['L']['STEP'])) ? "LIMIT 0," . (int)$F[$kType]['L']['STEP'] : $L;
+					$L = (isset($F[$kType]['L']['START']) && $F[$kType]['L']['STEP']) ? "LIMIT " . (int)$F[$kType]['L']['START'] . "," . (int)$F[$kType]['L']['STEP'] : $L;
 
 					#Order By
 					$O = $this->_get_order($Type, $savePatern[$kType],0);

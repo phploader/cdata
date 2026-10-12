@@ -1,3 +1,27 @@
+#2.16
+CData:
+! Fix: Filterwerte ohne Operator (z.B. $F['ARTICLE']['W'][0]['ID'] = [...]) wurden nicht maskiert. Werte mit Apostroph erzeugten fehlerhaftes SQL und waren per SQL-Injection angreifbar.
+! Fix: LIMIT: START und STEP werden als Integer übernommen. Zuvor wurden die Werte unmaskiert in das SQL eingefügt.
+! Fix: Vergleichsoperatoren >, <, >=, <= mit Zahlen vergleichen numerisch statt als Text ('10' > '9'). Gilt aktuell bei Übergabe der Werte als Array.
+! Fix: LIKE%%, LIKE%-, LIKE-% und LIKE%: Die Zeichen %, _ und \ im Suchwert gelten nun wörtlich (ESCAPE '\'). Zuvor fand z.B. $F['ARTICLE']['W'][0]['Name']['LIKE%%'] = '50%' auch '500 Stück'.
++ Operatoren BETWEEN und NOT BETWEEN hinzugefügt. Übergabe als Array mit zwei Werten: $F['ARTICLE']['W'][0]['Price']['BETWEEN'] = [10, 100]. Bei Zahlen wird numerisch, sonst als Text verglichen.
+~ ORDER BY: zusätzlich wird nach der ID sortiert, damit die Reihenfolge bei gleichen Sortierwerten immer gleich ist.
+~ Sortierwert (sort) wird als Zahl ohne Anführungszeichen in die Datenbank geschrieben.
++ Destruktor schließt die Datenbankverbindung.
+~ Backup-Verzeichnis wird mit 0755 statt 0777 angelegt.
+~ PRAGMA: default_temp_store und read_uncommitted entfernt.
++ Testsuite tests/CDataTest.php (ohne externe Abhängigkeiten, Aufruf: php tests/CDataTest.php). Jeder Test läuft in einem eigenen Prozess mit frischer Datenbank. Tests mit Präfix "known" beschreiben bekannte, noch nicht behobene Probleme.
+CCache:
+! Fix: set_cache speicherte bei mehreren Einträgen nur den zuletzt übergebenen Eintrag. Zusätzlich wurde eine übergebene Ttl falsch verarbeitet (String mit Komma statt Zahl).
+~ set_cache schreibt alle Einträge in einer Transaktion (alles oder nichts, bei Fehler ROLLBACK) und gibt true/false zurück. bindValue statt bindParam.
+~ Ttl in set_cache ist nun die Lebensdauer in Sekunden ab dem Speichern. Ohne Angabe gilt die neue Eigenschaft DefaultTtl (Standard 86400 = 24 Stunden).
+~ get_cache gibt immer ein Array zurück. Die TTL-Verlängerung (+DefaultTtl) wird nur noch ausgeführt, wenn es Treffer gab.
+! Fix: flush verwendet Prepared Statements für Tag und Zeit. Zuvor wurde der Tag unmaskiert in das SQL übernommen.
+! Fix: Warning "Undefined array key" in set_cache, wenn Source, Tag oder Data nicht übergeben wurden.
+! Fix: Warning im Konstruktor, wenn kein DB-Parameter übergeben wird.
++ Destruktor schließt die Datenbankverbindung.
+~ Verzeichnis für die Cache-Datenbank wird mit 0755 statt 0777 angelegt.
+~ PRAGMA: default_temp_store und read_uncommitted entfernt, mmap_size (50 MB) aktiviert.
 #2.15
 ~ backup Ordner aus dem Projekt entfernt, da dieser nicht in das Projekt gehört.
 ~ Klasse CCache aus der CData Klasse ausgelagert. Dadurch ist es möglich, den Cache auch ohne CData zu nutzen.
