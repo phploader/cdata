@@ -2,7 +2,7 @@
 namespace phploader;
 
 /** DOC
-@version 2.16
+@version 2.17
 @license https://opensource.org/license/lgpl-3-0 GNU Public License
  
 @todo
@@ -254,6 +254,8 @@ class CData
 		static $_RefrechCache = [];
 		
 		$savePatern = $this->PATTERN;
+		$eParentType = \SQLite3::escapeString((string)$Parent_Type); #IDs kommen oft aus Formularen: vor dem Einsetzen ins SQL escapen
+		$eParentId = \SQLite3::escapeString((string)$Parent_Id);
 		foreach ((array) $D AS $kType => $Type) { ##[PlATFORM]
 			
 			if (($this->PATTERN[$kType]??false) && is_array($Type)) { #Prüfe in Pattern ob diese erlaubt sind
@@ -261,13 +263,14 @@ class CData
 				$this->CCache->flush(['Tag' => "{$kType}/"]); #Cache bereinigen #ToDo: prüfen ob in der ebene veräderungen vorgenohmen wurden und nicht einfach pauschal leeren.
 				
 				foreach ((array) $Type['D'] AS $kSup => $Sup) { #PlATFORM.D[x]
+					$eSup = \SQLite3::escapeString((string)$kSup);
 					
 					$_RefrechCache[$Parent_Hash] = true; #aktuallisiere anhand des parent_path_hash Todo: Genauer !
 					
 					if( !is_null($Sup) && $Sup != '__DELETE__' && ($Sup['Active']??false) != -2 ) { #Insert/ Update ToDo: depricated: Löschen per Active=-2, muss entfernt werden!
 						$Child_Hash = hash("crc32b", $Parent_Hash.$kType.$kSup);
 
-						$IU_DATA .= (($IU_DATA) ? ',' : '') . "('{$kSup}','{$kType}','{$Parent_Hash}','{$Parent_Type}','{$Parent_Id}')";
+						$IU_DATA .= (($IU_DATA) ? ',' : '') . "('{$eSup}','{$kType}','{$Parent_Hash}','{$eParentType}','{$eParentId}')";
 						
 						$d = [];
 						foreach ((array) $Sup as $kATT => $ATT) { #PlATFORM.D.x.[ATTRIBUTE]
@@ -286,7 +289,7 @@ class CData
 								}
 								elseif(($this->PATTERN[$kType][$kATT]??false) && !is_array($ATT)) {
 									if(($ATT !== NULL && $ATT != '' && $ATT != '__DELETE__') || ($ATT !== NULL && isset($this->PATTERN[$kType][$kATT]['ForeignKey']) && $this->PATTERN[$kType][$kATT]['ForeignKey'] == 1) ) {
-										$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$kSup}','{$kType}','{$Parent_Hash}','{$kATT}'";#Setze Attribute
+										$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$eSup}','{$kType}','{$Parent_Hash}','{$kATT}'";#Setze Attribute
 										
 										$_sort = $this->_Value2SortHash($ATT); 
 										$IU_DATA_ATT .= (isset($ATT)) ? ",".(is_float($_sort) ? $_sort : "'".$_sort."'") : ",NULL";
@@ -294,7 +297,7 @@ class CData
 										$IU_DATA_ATT .= ")";
 									}
 									else {
-										$D_DATA_ATT .= (($D_DATA_ATT) ? ' OR ' : '') ." (id = '{$kSup}' AND type_id = '{$kType}' AND attribute_id = '{$kATT}' AND parent_path_hash = '{$Parent_Hash}' )";
+										$D_DATA_ATT .= (($D_DATA_ATT) ? ' OR ' : '') ." (id = '{$eSup}' AND type_id = '{$kType}' AND attribute_id = '{$kATT}' AND parent_path_hash = '{$Parent_Hash}' )";
 									}
 									
 								}
@@ -356,7 +359,8 @@ class CData
 		$D_DATA[$level] = '';
 		foreach( $C AS $k => $v) {
 			$Child_Hash = hash("crc32b", $v[0].$v[1].$v[2]);
-			$qry = $this->SQL->query("SELECT parent_path_hash, type_id, id FROM wp_data WHERE parent_path_hash = '{$Child_Hash}' AND parent_type_id = '{$v[1]}' AND parent_data_id = '{$v[2]}'");
+			$e = array_map(fn($x) => \SQLite3::escapeString((string)$x), $v); #IDs stammen aus Eingaben oder der Datenbank: vor dem Einsetzen ins SQL escapen
+			$qry = $this->SQL->query("SELECT parent_path_hash, type_id, id FROM wp_data WHERE parent_path_hash = '{$Child_Hash}' AND parent_type_id = '{$e[1]}' AND parent_data_id = '{$e[2]}'");
 			while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
 				#$parent_Hash = hash("crc32b", $a['parent_path_hash'].$a['type_id'].$a['id']);
 				$c[] = [ $a['parent_path_hash'], $a['type_id'], $a['id'] ];
@@ -365,7 +369,7 @@ class CData
 				$this->_delete_object($c, $level+1);
 				unset($c);
 			}
-			$D_DATA[$level] .= (($D_DATA[$level]) ? ' , ' : '') . "('{$v[0]}' || '{$v[1]}' || '{$v[2]}')";
+			$D_DATA[$level] .= (($D_DATA[$level]) ? ' , ' : '') . "('{$e[0]}' || '{$e[1]}' || '{$e[2]}')";
 		}
 		if($level == 0) {
 			for($i=count($D_DATA);$i >= 0; $i--) { #Löscht von oberen Ebene abwärts die Daten
@@ -398,7 +402,7 @@ class CData
 				foreach ((array) $Path as $kType => $Type) {
 					foreach ((array) $Type['D'] as $kSup => $Sup) {
 						
-						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$kSup}','{$kType}','{$kPath}'";
+						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('" . $this->SQL->escapeString((string)$kSup) . "','" . $this->SQL->escapeString((string)$kType) . "','" . $this->SQL->escapeString((string)$kPath) . "'";
 						
 						$json = $this->SQL->escapeString(json_encode($Sup));
 						$ChildHash = hash("crc32b", $kPath.$kType.$kSup);
@@ -455,7 +459,7 @@ class CData
 				foreach ((array) $Path as $kType => $Type) {
 					foreach ((array) $Type['D'] as $kSup => $Sup) {
 						
-						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$kSup}','{$kType}','{$kPath}'";
+						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('" . $this->SQL->escapeString((string)$kSup) . "','" . $this->SQL->escapeString((string)$kType) . "','" . $this->SQL->escapeString((string)$kPath) . "'";
 						
 						$json = $this->SQL->escapeString(json_encode($Sup));
 						$ChildHash = hash("crc32b", $kPath.$kType.$kSup);

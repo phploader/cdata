@@ -1,3 +1,5 @@
+#2.17
+~ IDs werden escaped.
 #2.16
 CData:
 ! Fix: Filterwerte ohne Operator (z.B. $F['ARTICLE']['W'][0]['ID'] = [...]) wurden nicht maskiert. Werte mit Apostroph erzeugten fehlerhaftes SQL und waren per SQL-Injection angreifbar.

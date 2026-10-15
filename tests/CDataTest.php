@@ -403,6 +403,45 @@ class CDataTest extends TestCase
 		$this->assertSame(['Name' => 'Apfel'], $D['ARTICLE']['D']['A1']);
 	}
 
+	// ------------------------------------------------------------------ IDs mit Sonderzeichen
+
+	/** IDs werden in set_object() escaped: Datensatz-ID mit Apostroph wird gespeichert. */
+	public function testRecordIdWithQuote(): void {
+		$db = $this->db();
+		$this->set($db, ['ARTICLE' => ['D' => ["q'id" => ['Name' => 'quote']]]]);
+		$this->assertSame(1, (int)$this->rawValue('SELECT count(*) FROM wp_data'));
+		$D = $this->get($db, ['ARTICLE' => []]);
+		$this->assertSame(["q'id"], $this->ids($D, 'ARTICLE'));
+	}
+
+	public function testRecordIdWithSqlInjectionCanBeUpdatedAndDeletedAndHarmsNothingElse(): void {
+		$db = $this->db();
+		$id = "q'); DELETE FROM wp_data; --";
+		$this->set($db, ['ARTICLE' => ['D' => ['A1' => ['Name' => 'bleibt'], $id => ['Name' => 'alt']]]]);
+		$this->set($db, ['ARTICLE' => ['D' => [$id => ['Name' => 'neu']]]]);
+
+		$D = $this->get($db, ['ARTICLE' => []]);
+		$this->assertSameValues(['A1', $id], $this->ids($D, 'ARTICLE'));
+		$this->assertSame('neu', $D['ARTICLE']['D'][$id]['Name']);
+
+		$this->set($db, ['ARTICLE' => ['D' => [$id => null]]]); // Löschen liest die ID aus der Datenbank und setzt sie wieder ins SQL ein
+		$D = $this->get($db, ['ARTICLE' => []]);
+		$this->assertSame(['A1'], $this->ids($D, 'ARTICLE'));
+		$this->assertSame('bleibt', $D['ARTICLE']['D']['A1']['Name']);
+	}
+
+	public function testNestedRecordIdsWithQuoteAndDeleteOfParent(): void {
+		$db = $this->db();
+		$this->set($db, ['PLATFORM' => ['D' => ["p'1" => ['Title' => 'P', 'ARTICLE' => ['D' => ["a'1" => ['Name' => 'x']]]]]]]);
+
+		$D = $this->get($db, ['PLATFORM' => ['ARTICLE' => []]]);
+		$this->assertSame(["a'1"], $this->ids($D['PLATFORM']['D']["p'1"], 'ARTICLE'));
+
+		$this->set($db, ['PLATFORM' => ['D' => ["p'1" => null]]]);
+		$this->assertSame(0, (int)$this->rawValue('SELECT count(*) FROM wp_data'));
+		$this->assertSame(0, (int)$this->rawValue('SELECT count(*) FROM wp_data_att'));
+	}
+
 	public function testSpecialCharactersInValuesAreStoredUnchanged(): void {
 		$db = $this->db();
 		$values = [
@@ -1090,15 +1129,6 @@ class CDataTest extends TestCase
 		$this->seedArticles($db);
 		$D = $this->get($db, ['ARTICLE' => ['W' => [0 => ['Name' => ["x') OR ('1'='1"]]]]]);
 		$this->assertSame([], $this->ids($D, 'ARTICLE'));
-	}
-
-	/** IDs werden in set_object() nicht escaped: Datensatz-ID mit Apostroph wird nicht gespeichert. */
-	public function knownRecordIdWithQuote(): void {
-		$db = $this->db();
-		$this->set($db, ['ARTICLE' => ['D' => ["q'id" => ['Name' => 'quote']]]]);
-		$this->assertSame(1, (int)$this->rawValue('SELECT count(*) FROM wp_data'));
-		$D = $this->get($db, ['ARTICLE' => []]);
-		$this->assertSame(["q'id"], $this->ids($D, 'ARTICLE'));
 	}
 
 	/** LIMIT gilt über alle Eltern hinweg statt je Elternelement: P1 kann dadurch leer bleiben (Doku 3.8: STEP = Anzahl). */
