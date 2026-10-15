@@ -14,6 +14,10 @@ BUG: Order in der zweiten Ebene z.B: $F[AAA][BBB][O][Feld] = 'DESC';  funktionie
 + Allowed Expression: regulären Ausdruck diese den Inhalt nach erlaubten Inhalt überprüft.
 + Required: ??? ggf. akzeptans, z.B. null or not null?
 + "IN SELECT", "NOT IN SELECT" : Where Bedinung nach SELECT aus anderen Tabellen. Z.b: ATTRIBUTE.W.0.ID['IN SELECT'].ID.ATTRIBUTE.ATTRIBUTE_GROUP.ATTRIBUTE_SET.W.0.Active = 1 Es sollen Filter je Ebene gesetzt werden können, der aufbau nach SELECT erfolgt Rückwerts
+
++ Datentypen: Definition und Überprüfung der Datentypen für Attribute. Beispielsweise kann ein Attribut als 'integer', 'float', 'string' oder 'boolean' definiert werden. Bei der Speicherung wird der Wert gegen den definierten Datentyp geprüft und ggf. konvertiert.
+
+
 */
 
 class CData
