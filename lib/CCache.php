@@ -37,7 +37,7 @@ class CCache
 				");
 			}
 			$this->Param['DB'] = $P['DB'];
-		} else { exit('kein DB-Übergabe Parameter!'); }
+		} else { throw new \InvalidArgumentException('kein DB-Übergabe Parameter!'); }
 	}
 
 	function __destruct() {

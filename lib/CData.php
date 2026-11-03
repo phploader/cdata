@@ -27,7 +27,7 @@ class CData
 	private $Param;
 	private $BackupDestinationPath;
 	private $BackupPassword;
-
+	private $PATTERN = null;
 
 
 	/**
@@ -37,13 +37,13 @@ class CData
 	*/
 	function __construct($P=null)
 	{
-		if($P['DB']) {
+		if($P['DB'] ?? false) {
 			if(file_exists($P['DB']['FILENAME'])) {
 				$this->SQL = new \SQLite3($P['DB']['FILENAME'], ($P['DB']['FLAGS']??SQLITE3_OPEN_READWRITE) );
 			} else {
 				$path= pathinfo($P['DB']['FILENAME']);
 				if(!is_dir($path['dirname'])) {
-					mkdir($path['dirname'], 0777, true);
+					mkdir($path['dirname'], 0755, true);
 				}
 				$this->SQL = new \SQLite3($P['DB']['FILENAME']);
 				$this->CreateDB();
@@ -79,7 +79,7 @@ class CData
 				}
 			}
 
-		} else { exit('kein DB-Übergabe Parameter!'); }
+		} else { throw new \InvalidArgumentException('kein DB-Übergabe Parameter!'); }
 	}
 
 	function __destruct() {
@@ -219,7 +219,7 @@ class CData
 
 			#Ziped
 			$zip = new \ZipArchive();
-			if( $zip->open("{$this->BackupDestinationPath}{$datetime}_{$path['basename']}.zip", \ZipArchive::CREATE) ) {
+			if( $zip->open("{$this->BackupDestinationPath}{$datetime}_{$path['basename']}.zip", \ZipArchive::CREATE) === true ) {
 				$zip->addFile("{$this->BackupDestinationPath}{$datetime}_{$path['basename']}","{$datetime}_{$path['basename']}");
 				if($this->BackupPassword) {
 					$zip->setEncryptionName("{$datetime}_{$path['basename']}", \ZipArchive::EM_AES_256, $this->BackupPassword);
@@ -373,14 +373,14 @@ class CData
 				$this->_delete_object($c, $level+1);
 				unset($c);
 			}
-			$D_DATA[$level] .= (($D_DATA[$level]) ? ' , ' : '') . "('{$e[0]}' || '{$e[1]}' || '{$e[2]}')";
+			$D_DATA[$level] .= (($D_DATA[$level]) ? ' , ' : '') . "('{$e[0]}','{$e[1]}','{$e[2]}')"; # Zeilenwert statt Verkettung: 'AB'+'C' und 'A'+'BC' dürfen nicht kollidieren
 		}
 		if($level == 0) {
 			for($i=count($D_DATA);$i >= 0; $i--) { #Löscht von oberen Ebene abwärts die Daten
 				if(isset($D_DATA[$i])) {
-					$this->SQL->query("DELETE FROM wp_data_att WHERE (parent_path_hash || type_id || id) IN ({$D_DATA[$i]})"); #Lösche Attribute
-					$this->SQL->query("DELETE FROM wp_data_cache WHERE (parent_path_hash || type_id || id) IN ({$D_DATA[$i]})"); #Lösche Cache
-					$this->SQL->query("DELETE FROM wp_data WHERE (parent_path_hash || type_id || id) IN ({$D_DATA[$i]})"); #Lösche Datensatz
+					$this->SQL->query("DELETE FROM wp_data_att WHERE (parent_path_hash, type_id, id) IN (VALUES {$D_DATA[$i]})"); #Lösche Attribute
+					$this->SQL->query("DELETE FROM wp_data_cache WHERE (parent_path_hash, type_id, id) IN (VALUES {$D_DATA[$i]})"); #Lösche Cache
+					$this->SQL->query("DELETE FROM wp_data WHERE (parent_path_hash, type_id, id) IN (VALUES {$D_DATA[$i]})"); #Lösche Datensatz
 				}
 			}
 		}
@@ -390,55 +390,14 @@ class CData
 	 * repariert die wp_data_cache bzw. stellt wieder her.
 	 */
 	function repair() {
-
-			#2. Selektiere Datensätze anhand des PathHash
-			$qry = $this->SQL->query("SELECT d.id, d.type_id, d.parent_path_hash, attribute_id, value
-						FROM wp_data d LEFT JOIN wp_data_att dat ON d.id = dat.id AND d.type_id = dat.type_id AND d.parent_path_hash = dat.parent_path_hash
-						WHERE 1
-			");
-			while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
-				$set_d[$a['parent_path_hash']][$a['type_id']]['D'][$a['id']][$a['attribute_id']] = $a['value'];
-			}
-			
-			#3. Speichere neue Datensätze im Cache ab
-			$IU_DATA_ATT = '';
-			foreach ((array) $set_d as $kPath => $Path) {
-				foreach ((array) $Path as $kType => $Type) {
-					foreach ((array) $Type['D'] as $kSup => $Sup) {
-						
-						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('" . $this->SQL->escapeString((string)$kSup) . "','" . $this->SQL->escapeString((string)$kType) . "','" . $this->SQL->escapeString((string)$kPath) . "'";
-						
-						$json = $this->SQL->escapeString(json_encode($Sup));
-						$ChildHash = hash("crc32b", $kPath.$kType.$kSup);
-						$IU_DATA_ATT .= ",'{$ChildHash}'";
-						$IU_DATA_ATT .= ",'" . str_replace([',"":""','"":"",','"":""','"":null'],'',$json) . "'"; #replace entfernt leere Key Werte
-						
-						$IU_DATA_ATT .= ")";
-
-						if( $_i > 10000 ) {
-							$this->SQL->query("REPLACE INTO wp_data_cache (id, type_id, parent_path_hash,path_hash,data) VALUES {$IU_DATA_ATT} 
-									ON CONFLICT(id, type_id, parent_path_hash) DO UPDATE SET
-										data =			CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data		THEN excluded.data ELSE data END,
-										utimestamp =	CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data
-														THEN cast(strftime('%s', 'now') as int) ELSE utimestamp END
-									");
-							unset($IU_DATA_ATT);
-							$_i=0;
-						}
-						$_i++;
-					}
-				}
-			}
-			
-			if ($IU_DATA_ATT) {
-				$this->SQL->query("REPLACE INTO wp_data_cache (id, type_id, parent_path_hash,path_hash,data) VALUES {$IU_DATA_ATT} 
-									ON CONFLICT(id, type_id, parent_path_hash) DO UPDATE SET
-										data =			CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data		THEN excluded.data ELSE data END,
-										utimestamp =	CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data
-														THEN cast(strftime('%s', 'now') as int) ELSE utimestamp END
-									");
-									
-			}
+		$H = [];
+		$qry = $this->SQL->query("SELECT DISTINCT parent_path_hash FROM wp_data");
+		while ($a = $qry->fetchArray(SQLITE3_NUM)) {
+			$H[$a[0]] = true;
+		}
+		foreach (array_chunk($H, 5000, true) as $Chunk) { #Begrenzt die Länge des IN-Statements
+			$this->_set_cache($Chunk);
+		}
 	}
 	private function _set_cache(&$RefrechCache_PathHash=null) {
 		
@@ -458,32 +417,23 @@ class CData
 			}
 			
 			#3. Speichere neue Datensätze im Cache ab
-			$IU_DATA_ATT = '';
-			foreach ((array) $set_d as $kPath => $Path) {
-				foreach ((array) $Path as $kType => $Type) {
-					foreach ((array) $Type['D'] as $kSup => $Sup) {
-						
-						$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('" . $this->SQL->escapeString((string)$kSup) . "','" . $this->SQL->escapeString((string)$kType) . "','" . $this->SQL->escapeString((string)$kPath) . "'";
-						
-						$json = $this->SQL->escapeString(json_encode($Sup));
-						$ChildHash = hash("crc32b", $kPath.$kType.$kSup);
-						$IU_DATA_ATT .= ",'{$ChildHash}'";
-						$IU_DATA_ATT .= ",'" . str_replace([',"":""','"":"",','"":""','"":null'],'',$json) . "'"; #replace entfernt leere Key Werte
-						
-						$IU_DATA_ATT .= ")";
-
+			$IU_DATA_ATT = [];
+			foreach ((array) ($set_d ?? []) as $kPath => $Path) {
+				foreach ($Path as $kType => $Type) {
+					foreach ($Type['D'] as $kSup => $Sup) {
+						$json = str_replace([',"":""','"":"",','"":""','"":null'],'',$this->SQL->escapeString(json_encode($Sup))); #entfernt leere Key Werte
+						$IU_DATA_ATT[] = "('" . $this->SQL->escapeString((string)$kSup) . "','" . $this->SQL->escapeString((string)$kType) . "','" . $this->SQL->escapeString((string)$kPath) . "','" . hash("crc32b", $kPath.$kType.$kSup) . "','{$json}')";
 					}
 				}
 			}
 			
 			if ($IU_DATA_ATT) {
-				$this->SQL->query("REPLACE INTO wp_data_cache (id, type_id, parent_path_hash,path_hash,data) VALUES {$IU_DATA_ATT} 
+				$this->SQL->query("REPLACE INTO wp_data_cache (id, type_id, parent_path_hash,path_hash,data) VALUES " . implode(',', $IU_DATA_ATT) . "
 									ON CONFLICT(id, type_id, parent_path_hash) DO UPDATE SET
 										data =			CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data		THEN excluded.data ELSE data END,
 										utimestamp =	CASE WHEN excluded.data IS NOT NULL	AND ifnull(data,'') <> excluded.data
 														THEN cast(strftime('%s', 'now') as int) ELSE utimestamp END
 									");
-									
 			}
 			
 		}
@@ -703,7 +653,7 @@ class CData
 					$_CacheData = $this->CCache->get_cache($_sqlmd5);
 				}
 				if($stLevel==0 && isset($_CacheData[$_sqlmd5])) {
-					$d = unserialize($_CacheData[$_sqlmd5]['Data']);
+					$d = unserialize($_CacheData[$_sqlmd5]['Data'], ['allowed_classes' => false]);
 					$D[''][$kType] = $d[$kType];
 				}
 				else {
@@ -741,7 +691,9 @@ class CData
 					
 					##echo "SELECT id, type_id, parent_path_hash,path_hash, data FROM wp_data_cache dtmp0 WHERE {$W} {$O} {$L}<br>";
 					$qry = $this->SQL->query("SELECT id, type_id, parent_path_hash,path_hash, data FROM wp_data_cache dtmp0 WHERE {$W} {$O} {$L}");
+					$_Num = [];
 					while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
+						$_Num[ $a['parent_path_hash'] ][ $a['type_id'] ] = ($_Num[ $a['parent_path_hash'] ][ $a['type_id'] ] ?? 0) + 1;
 						$D[ $a['parent_path_hash'] ][ $a['type_id'] ]['D'][ $a['id'] ] = array_replace_recursive(
 						(array) ($D[ $a['parent_path_hash'] ][ $a['type_id'] ]['D'][$a['id']]??[]),
 						(array) json_decode($a['data'], 1));
@@ -763,9 +715,14 @@ class CData
 					
 
 					#Lese Count aus
-					$qry = $this->SQL->query("SELECT count(*) num, type_id, parent_path_hash, path_hash FROM wp_data_cache dtmp0 WHERE {$W_count} GROUP BY parent_path_hash,type_id");
-					while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
-						$D[ $a['parent_path_hash'] ][ $a['type_id'] ]['COUNT'] = $a['num'];
+					if($L === '' && trim($W) === trim($W_count)) { #Ohne Limit und Filter entspricht Count den gelesenen Zeilen
+						foreach($_Num AS $kP => $vP) { foreach($vP AS $kT => $n) { $D[$kP][$kT]['COUNT'] = $n; } }
+					}
+					else {
+						$qry = $this->SQL->query("SELECT count(*) num, type_id, parent_path_hash, path_hash FROM wp_data_cache dtmp0 WHERE {$W_count} GROUP BY parent_path_hash,type_id");
+						while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
+							$D[ $a['parent_path_hash'] ][ $a['type_id'] ]['COUNT'] = $a['num'];
+						}
 					}
 					
 					#3. gehe in die weitere Ebene
