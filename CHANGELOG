@@ -1,5 +1,16 @@
 #2.17
 ~ IDs werden escaped.
+CData:
+~ Der L2-Cache wird mit unserialize(..., ['allowed_classes' => false]) gelesen. Der Cache enthält nur Arrays, dadurch ist keine Objekt-Injection über eine veränderte Cache-Datei möglich.
+~ Löschen: Die Zeilen werden per Zeilenwert (parent_path_hash, type_id, id) IN (VALUES ...) statt über verkettete Strings gesucht. Dadurch keine Kollisionen (z.B. 'AB'+'C' und 'A'+'BC') und der Primärschlüssel wird genutzt.
+~ Konstruktor: Verzeichnis der Datenbank wird mit 0755 statt 0777 angelegt, ein fehlender DB-Parameter erzeugt keine Warnung mehr und wirft eine InvalidArgumentException statt exit().
+~ backup(): Das Öffnen der ZIP-Datei wird mit === true geprüft.
+~ Eigenschaft $PATTERN ist deklariert (Deprecation ab PHP 8.2).
+~ get_object: Die COUNT-Abfrage wird nur noch bei LIMIT oder Filter ausgeführt, sonst wird aus den gelesenen Zeilen gezählt. Ergebnis unverändert.
+~ _set_cache: Die VALUES-Liste wird als Array aufgebaut, keine Warnung mehr wenn keine Datensätze vorhanden sind.
+~ repair() verwendet _set_cache (in Blöcken zu 5000 Eltern-Hashes). Behebt zugleich die nicht initialisierten Variablen $_i und $set_d.
+CCache:
+~ Der Konstruktor wirft eine InvalidArgumentException statt exit() auszuführen, wenn kein DB-Parameter übergeben wird.
 #2.16
 CData:
 ! Fix: Filterwerte ohne Operator (z.B. $F['ARTICLE']['W'][0]['ID'] = [...]) wurden nicht maskiert. Werte mit Apostroph erzeugten fehlerhaftes SQL und waren per SQL-Injection angreifbar.
