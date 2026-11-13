@@ -413,7 +413,9 @@ class CData
 						WHERE d.parent_path_hash IN ('{$Keys}')
 			");
 			while ($a = $qry->fetchArray(SQLITE3_ASSOC)) {
-				$set_d[$a['parent_path_hash']][$a['type_id']]['D'][$a['id']][$a['attribute_id']] = $a['value'];
+				#$set_d[$a['parent_path_hash']][$a['type_id']]['D'][$a['id']][$a['attribute_id']] = $a['value'];
+				$attributeId = (string) ($a['attribute_id'] ?? '');
+				$set_d[$a['parent_path_hash']][$a['type_id']]['D'][$a['id']][$attributeId] = $a['value'];
 			}
 			
 			#3. Speichere neue Datensätze im Cache ab

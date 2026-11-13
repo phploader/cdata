@@ -1,6 +1,7 @@
 #2.17
 ~ IDs werden escaped.
 CData:
+~ Fix: **Deprecated**: Using null as an array offset is deprecated. CData.php:416
 ~ Der L2-Cache wird mit unserialize(..., ['allowed_classes' => false]) gelesen. Der Cache enthält nur Arrays, dadurch ist keine Objekt-Injection über eine veränderte Cache-Datei möglich.
 ~ Löschen: Die Zeilen werden per Zeilenwert (parent_path_hash, type_id, id) IN (VALUES ...) statt über verkettete Strings gesucht. Dadurch keine Kollisionen (z.B. 'AB'+'C' und 'A'+'BC') und der Primärschlüssel wird genutzt.
 ~ Konstruktor: Verzeichnis der Datenbank wird mit 0755 statt 0777 angelegt, ein fehlender DB-Parameter erzeugt keine Warnung mehr und wirft eine InvalidArgumentException statt exit().
