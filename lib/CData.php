@@ -582,7 +582,7 @@ class CData
 			}
 		}
 		if(!$Operation) { #Wenn keine Operation und kein Wert übergeben wurde aber nur ein kFild, dann ist der Value als Leer zu betrachten
-			$Ope = \SQLite3::escapeString($Ope);
+			$Ope = \SQLite3::escapeString((string)($Ope ?? ''));
 			$aloneOV .= ($aloneOV?',':" {$_Fild} IN (")."'{$Ope}'"; #Ohne Operator übergab 
 		}
 		$O = ($aloneOV)?$aloneOV.')':'';
