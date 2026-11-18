@@ -122,6 +122,7 @@ class CDataTest extends TestCase
 			],
 			'ARTICLE' => [
 				'Active' => ['Type' => 'checkbox'],
+				'Enabled' => ['Type' => 'bool'],
 				'Name'   => ['Type' => 'text'],
 				'Price'  => ['Type' => 'number'],
 				'Ref'    => ['Type' => 'id', 'ForeignKey' => 1],
@@ -142,6 +143,7 @@ class CDataTest extends TestCase
 					'ARTICLE' => [
 						'Name'  => ['Type' => 'text'],
 						'Price' => ['Type' => 'number'],
+						'Enabled' => ['Type' => 'bool'],
 						'D' => [
 							'LANGUAGE' => [
 								'Active' => ['Type' => 'checkbox'],
@@ -479,6 +481,28 @@ class CDataTest extends TestCase
 		$this->assertSame('0', $D['ARTICLE']['D']['A1']['Active']);
 	}
 
+	public function testCheckboxAndBoolNormalizeValuesAndPreserveDeleteMarkers(): void {
+		$db = $this->db();
+		foreach ([true, false, 1, 0, '1', '0', 2, -1, 1.0, '2', 'true', 'false', 'ja'] as $value) {
+			$this->set($db, ['ARTICLE' => ['D' => ['A1' => ['Active' => $value, 'Enabled' => $value, 'Name' => 'Unchanged']]]]);
+			$D = $this->get($db, ['ARTICLE' => []]);
+			$expected = in_array($value, [true, 1, '1'], true) ? '1' : '0';
+			$this->assertSame($expected, $D['ARTICLE']['D']['A1']['Active'] ?? null, 'checkbox');
+			$this->assertSame($expected, $D['ARTICLE']['D']['A1']['Enabled'] ?? null, 'bool');
+			$this->assertSame('Unchanged', $D['ARTICLE']['D']['A1']['Name'] ?? null);
+		}
+		foreach ([null, '', '__DELETE__'] as $value) {
+			$this->set($db, ['ARTICLE' => ['D' => ['A1' => ['Active' => 1, 'Enabled' => 1]]]]);
+			$this->set($db, ['ARTICLE' => ['D' => ['A1' => ['Active' => $value, 'Enabled' => $value]]]]);
+			$D = $this->get($db, ['ARTICLE' => []]);
+			$this->assertArrayNotHasKey('Active', $D['ARTICLE']['D']['A1']);
+			$this->assertArrayNotHasKey('Enabled', $D['ARTICLE']['D']['A1']);
+		}
+		$this->set($db, ['PLATFORM' => ['D' => ['P1' => ['ARTICLE' => ['D' => ['A1' => ['Enabled' => true]]]]]]]);
+		$D = $this->get($db, ['PLATFORM' => ['ARTICLE' => []]]);
+		$this->assertSame('1', $D['PLATFORM']['D']['P1']['ARTICLE']['D']['A1']['Enabled']);
+	}
+
 	// ------------------------------------------------------------------ set_object: Attribute löschen
 
 	public function testEmptyStringRemovesAttribute(): void {
@@ -580,6 +604,22 @@ class CDataTest extends TestCase
 		$this->assertSameValues(['P1', 'P2'], $this->ids($D, 'PLATFORM'));
 		$this->assertSame(['x2'], $this->ids($D['PLATFORM']['D']['P1'], 'ARTICLE'));
 		$this->assertSame(['x3'], $this->ids($D['PLATFORM']['D']['P2'], 'ARTICLE'));
+	}
+
+	public function testDeleteParentWithMultipleDeepBranchesAndRepeatedDeletes(): void {
+		$db = $this->db();
+		$this->set($db, ['PLATFORM' => ['D' => [
+			'P1' => ['LANGUAGE' => ['D' => [
+				'DE' => ['ATTRIBUTE' => ['D' => ['one' => ['Title' => 'Eins']]]],
+				'EN' => ['ATTRIBUTE' => ['D' => ['two' => ['Title' => 'Two']]]],
+			]]],
+			'P2' => ['LANGUAGE' => ['D' => ['FR' => ['ATTRIBUTE' => ['D' => ['three' => ['Title' => 'Trois']]]]]]],
+		]]]);
+		$this->set($db, ['PLATFORM' => ['D' => ['P1' => '__DELETE__']]]);
+		$this->assertSame(0, (int)$this->rawValue("SELECT count(*) FROM wp_data WHERE id IN ('DE','EN','one','two')"));
+		$this->assertSame(0, (int)$this->rawValue("SELECT count(*) FROM wp_data_cache WHERE id IN ('DE','EN','one','two')"));
+		$this->set($db, ['PLATFORM' => ['D' => ['P2' => '__DELETE__']]]);
+		$this->assertSame(0, (int)$this->rawValue("SELECT count(*) FROM wp_data WHERE id IN ('FR','three')"));
 	}
 
 	// ------------------------------------------------------------------ Hierarchie
@@ -689,6 +729,18 @@ class CDataTest extends TestCase
 		$this->seedArticles($db);
 		$D = $this->get($db, ['ARTICLE' => ['W' => [0 => ['ID' => ['A1', 'A2']]]]]);
 		$this->assertSameValues(['A1', 'A2'], $this->ids($D, 'ARTICLE'));
+	}
+
+	public function testWhereImplicitInTreatsNullAsEmptyStringWithoutDeprecation(): void {
+		$db = $this->db();
+		$this->set($db, ['ARTICLE' => ['D' => [
+			'A1' => ['Ref' => ''],
+			'A2' => ['Ref' => 'linked'],
+			'A3' => ['Ref' => 'other'],
+		]]]);
+		$D = $this->get($db, ['ARTICLE' => ['W' => [['Ref' => [null, 'linked']]]]]);
+		$this->assertSameValues(['A1', 'A2'], $this->ids($D, 'ARTICLE'));
+		$this->assertFalse(str_contains(implode("\n", array_keys($GLOBALS['LIB_NOTICES'])), 'SQLite3::escapeString(): Passing null'));
 	}
 
 	public function testWhereIdNotIn(): void {
@@ -1145,7 +1197,7 @@ class CDataTest extends TestCase
 	 * Baums werden bei einem späteren flachen Löschen veraltete tiefere Ebenen erneut ausgeführt und löschen
 	 * neu angelegte Datensätze mit.
 	 */
-	public function knownDeleteDoesNotReuseStateOfPreviousDelete(): void {
+	public function testDeleteDoesNotReuseStateOfPreviousDelete(): void {
 		$db = $this->db();
 		$this->seedPlatforms($db);
 		$this->set($db, ['PLATFORM' => ['D' => ['P1' => null]]]); // tiefer Baum (3 Ebenen)

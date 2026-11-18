@@ -21,10 +21,17 @@ $D['PATTERN']['PLATFORM']['D']['MANUFACTURER'] = [
 ```
 **ForeignKey:** Beim Pattern kann = 1 übergeben werden. Dadurch kann man ein Feld als Fremdschlüssel kennzeichnen. Bei der Ausgabe wird PARENT->CHILD ausgabe generiert, so dass auch nach Fremdschlüssel selekitert wird.
 
-### Mögliche Attribute: <!--(ToDo: Attribute umsetzen:)-->
- - Type : id, string, number
+### Mögliche Attribute:
+ - Type : id, string, number, checkbox, bool
  - Min : (optional) bei string, gibt mindest Buchstaben an. bei numbers, bestimmt mindest Wert, bereich z.B: -100 oder -100.0000 dann ergibt ein float mit 4 nachkommastellen. ist Min Angegeben, so wird draus ein Pflichtfeld.
  - Max : (optional) bei string, gibt maximal Buchstaben an. bei numbers, bestimmt maximal Wert, bereich z.B: 1000 oder 100.0000 dann ergibt ein float mit 4 nachkommastellen.
+
+`checkbox` und `bool` sind gleichwertig: `1`, `'1'` und `true` werden als `1`,
+alle anderen skalaren Werte als `0` gespeichert. Ausgenommen sind die bestehenden
+Löschwerte `null`, `''` und `'__DELETE__'` für Attribute sowie `Active = -2`
+für ganze Datensätze. Bei der Abfrage werden die gespeicherten Werte wie
+andere numerische Werte als Zeichenketten zurückgegeben. Weitere Typ- und
+Grenzwertprüfungen sind noch nicht umgesetzt.
 
 # SET 
 

@@ -15,7 +15,7 @@ BUG: Order in der zweiten Ebene z.B: $F[AAA][BBB][O][Feld] = 'DESC';  funktionie
 + Required: ??? ggf. akzeptans, z.B. null or not null?
 + "IN SELECT", "NOT IN SELECT" : Where Bedinung nach SELECT aus anderen Tabellen. Z.b: ATTRIBUTE.W.0.ID['IN SELECT'].ID.ATTRIBUTE.ATTRIBUTE_GROUP.ATTRIBUTE_SET.W.0.Active = 1 Es sollen Filter je Ebene gesetzt werden können, der aufbau nach SELECT erfolgt Rückwerts
 
-+ Datentypen: Definition und Überprüfung der Datentypen für Attribute. Beispielsweise kann ein Attribut als 'integer', 'float', 'string' oder 'boolean' definiert werden. Bei der Speicherung wird der Wert gegen den definierten Datentyp geprüft und ggf. konvertiert.
++ Datentypen: Weitere Typen wie 'integer', 'float' und 'string' bei der Speicherung prüfen und ggf. konvertieren. 'checkbox' und 'bool' werden bereits behandelt.
 
 
 */
@@ -292,6 +292,7 @@ class CData
 									$stLevel--;
 								}
 								elseif(($this->PATTERN[$kType][$kATT]??false) && !is_array($ATT)) {
+									if (in_array($this->PATTERN[$kType][$kATT]['Type'] ?? null, ['checkbox', 'bool'], true) && !in_array($ATT, [null, '', '__DELETE__'], true)) $ATT = (int)in_array($ATT, [1, '1', true], true);
 									if(($ATT !== NULL && $ATT != '' && $ATT != '__DELETE__') || ($ATT !== NULL && isset($this->PATTERN[$kType][$kATT]['ForeignKey']) && $this->PATTERN[$kType][$kATT]['ForeignKey'] == 1) ) {
 										$IU_DATA_ATT .= (($IU_DATA_ATT) ? ',' : '') . "('{$eSup}','{$kType}','{$Parent_Hash}','{$kATT}'";#Setze Attribute
 										
@@ -360,7 +361,8 @@ class CData
 	 */
 	private function _delete_object($C, $level=0) {
 		static $D_DATA = [];
-		$D_DATA[$level] = '';
+		if ($level === 0) $D_DATA = [];
+		if (!isset($D_DATA[$level])) $D_DATA[$level] = '';
 		foreach( $C AS $k => $v) {
 			$Child_Hash = hash("crc32b", $v[0].$v[1].$v[2]);
 			$e = array_map(fn($x) => \SQLite3::escapeString((string)$x), $v); #IDs stammen aus Eingaben oder der Datenbank: vor dem Einsetzen ins SQL escapen
@@ -577,7 +579,7 @@ class CData
 				$OV .= " {$_Fild} NOT IN ({$_Value}) ";
 			}
 			else {
-				$Ope = \SQLite3::escapeString($Ope);
+				$Ope = \SQLite3::escapeString((string)($Ope ?? ''));
 				$aloneOV .= ($aloneOV?',':" {$_Fild} IN (")."'{$Ope}'"; #Ohne Operator übergabe
 			}
 		}
