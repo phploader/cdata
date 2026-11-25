@@ -271,7 +271,7 @@ class CData
 					
 					$_RefrechCache[$Parent_Hash] = true; #aktuallisiere anhand des parent_path_hash Todo: Genauer !
 					
-					if( !is_null($Sup) && $Sup != '__DELETE__' && ($Sup['Active']??false) != -2 ) { #Insert/ Update ToDo: depricated: Löschen per Active=-2, muss entfernt werden!
+					if( !is_null($Sup) && $Sup != '__DELETE__' && (is_bool($Sup['Active']??false) || ($Sup['Active']??false) != -2) ) { #Insert/ Update ToDo: depricated: Löschen per Active=-2, muss entfernt werden!
 						$Child_Hash = hash("crc32b", $Parent_Hash.$kType.$kSup);
 
 						$IU_DATA .= (($IU_DATA) ? ',' : '') . "('{$eSup}','{$kType}','{$Parent_Hash}','{$eParentType}','{$eParentId}')";
@@ -497,13 +497,13 @@ class CData
 				$suf = (in_array($kOpe,['LIKE%','LIKE%%','LIKE-%']))?'%':'';
 				if(is_array($Ope)) { #Wurde Value als Array übergeben?
 					foreach((array)$Ope AS $k => $v) {
-						$v = addcslashes($v, '%_\\'); 
+						if ($kOpe !== 'LIKE') $v = addcslashes($v, '%_\\');
 						$v = \SQLite3::escapeString($v);
 						$_Value .= ($_Value?' OR ':'')."{$_Fild} LIKE '{$pre}{$v}{$suf}' {$esc}";
 					}
 				}
 				else {
-					$Ope = addcslashes($Ope, '%_\\');
+					if ($kOpe !== 'LIKE') $Ope = addcslashes($Ope, '%_\\');
 					$Ope = \SQLite3::escapeString($Ope);
 					$_Value = " {$_Fild} LIKE '{$pre}{$Ope}{$suf}'  {$esc}";
 				}

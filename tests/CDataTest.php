@@ -564,6 +564,9 @@ class CDataTest extends TestCase
 		$this->set($db, ['ARTICLE' => ['D' => ['A1' => ['Active' => -2]]]]);
 		$D = $this->get($db, ['ARTICLE' => []]);
 		$this->assertSameValues(['A2', 'A3'], $this->ids($D, 'ARTICLE'));
+		$this->set($db, ['ARTICLE' => ['D' => ['A3' => ['Active' => '-2']]]]);
+		$D = $this->get($db, ['ARTICLE' => []]);
+		$this->assertSame(['A2'], $this->ids($D, 'ARTICLE'));
 	}
 
 	public function testDeleteNonExistingRecordDoesNothing(): void {
@@ -824,8 +827,15 @@ class CDataTest extends TestCase
 		$this->assertSameValues(['A2', 'A3'], $ids('LIKE%-', 'ne'), 'endet mit');
 		$this->assertSameValues(['A2', 'A3'], $ids('LIKE%%', 'r'), 'enthält');
 		$this->assertSame(['A2'], $ids('LIKE', '%rne'), 'LIKE ohne Joker-Ergänzung');
+		$this->assertSame(['A2'], $ids('LIKE', 'Bir_e'), 'LIKE mit einem Zeichen als Joker');
 		$this->assertSame([], $ids('LIKE', 'rne'));
+		$this->assertSameValues(['A1', 'A2'], $ids('LIKE', ['Ap%', 'B_rne']), 'LIKE mit Joker-Liste');
 		$this->assertSameValues(['A1', 'A3'], $ids('LIKE%%', ['pf', 'tro']), 'LIKE mit Liste = OR');
+		$this->set($db, ['ARTICLE' => ['D' => [
+			'A4' => ['Name' => '50%_Rabatt'], 'A5' => ['Name' => '500xRabatt'],
+		]]]);
+		$this->assertSame(['A4'], $ids('LIKE%%', '%_'), 'LIKE%% behandelt % und _ wörtlich');
+		$this->assertSame(['A4'], $ids('LIKE%%', ['%_']), 'LIKE%%-Liste behandelt % und _ wörtlich');
 	}
 
 	public function testWhereAndConditionsWithinOneGroup(): void {

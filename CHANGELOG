@@ -1,8 +1,9 @@
-#2.18 (unveroeffentlicht)
+#2.17
+! Active=true und Active=false speichern boolesche Werte, ohne den Datensatz versehentlich zu loeschen; Active=-2 bleibt ein Loeschmarker.
+! Einfaches LIKE behandelt % und _ wie dokumentiert als Platzhalter; die anderen LIKE-Varianten maskieren diese weiterhin.
 ! WHERE-Wertelisten ohne Operator behandeln null weiterhin als leeren String, ohne PHP-Deprecation in SQLite3::escapeString().
 ! Rekursives Loeschen sammelt Unterzweige gleicher Tiefe vollstaendig und setzt den Zustand zwischen Loeschvorgaengen zurueck.
 ~ Pattern-Typen checkbox und bool speichern 1, '1' und true als 1, sonst 0; bestehende Loeschmarker bleiben erhalten.
-#2.17
 ~ IDs werden escaped.
 CData:
 ~ Fix: **Deprecated**: Using null as an array offset is deprecated. CData.php:416
